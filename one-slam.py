@@ -65,7 +65,7 @@ totalseconds = 0
 totalkm = 0
 
 # get page of activities from Strava
-r = requests.get(url + '?access_token=' + access_token + '&per_page=200' + '&page=' + str(page))
+r = requests.get(url + '?access_token=' + access_token + '&per_page=200' + '&page=' + str(page)+ '&after=' + str(onefeb.shift(days=-1).timestamp))
 r = r.json()# if no results then exit loop
 if (not r):
     pass
