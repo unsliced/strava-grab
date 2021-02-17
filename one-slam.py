@@ -122,4 +122,7 @@ endtime = onefeb.shift(days=approxd)
 endtime = endtime.shift(seconds=approxs)
 endtime = endtime.format("YYYY-MM-DD HH:mm")
 
-print(f"\nTotals: {totalkm:.2f}km, {days}{secs}\nFinishing: {endtime}\n{ab} {delta:0.2f}km")
+totalmi = totalkm * conv_fac
+percentage = 100 * totalmi / 400 
+
+print(f"\nTotals: {totalkm:.2f}km/{totalmi:.2f}mi ({percentage:.1f}% complete), {days}{secs}\nFinishing: {endtime}\n{ab} {delta:0.2f}km")
