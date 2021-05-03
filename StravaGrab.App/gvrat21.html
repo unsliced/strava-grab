@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>GVRAT21: Progress Map</title>
+        <!-- based on the quick start guide: https://leafletjs.com/examples/quick-start/ -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+        <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+        <style>
+            #mapid { height: 800px; }
+        </style>
+        <script src="pbf/gvrat21.js"></script>
+
+    </head>
+    <body>
+        <h1>GVRAT21 Progress</h1>
+        <p>In which I learn how to plot a GeoJSON route on a live OSM map.</p>
+        <div id="mapid"></div>
+        <script>
+            var mymap = L.map('mapid').setView([36.1606, -86], 7);
+            L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/streets-v11',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: 'pk.eyJ1IjoidW5zbGljZWQiLCJhIjoiY2tuYmpyYmV4MDV4ZTJwcDUzeDIxeXBvaSJ9.OnEqs5SWYiRzJREgxN6ydA'
+            }).addTo(mymap);
+
+
+            var jsonlayer = L.geoJSON(g21).addTo(mymap);
+
+            function onEachFeature(feature, layer) {
+                // does this feature have a property named popupContent?
+                if (feature.properties && feature.properties.popupContent) {
+                    jsonlayer.bindPopup(feature.properties.popupContent);
+                }
+            }
+
+            var progressMarkerOptions = {
+                radius: 5,
+                fillColor: "lightgray",
+                color: "#000",
+                weight: 1,
+                opacity: 0.5,
+                fillOpacity: 0.8
+            };
+
+            function onEachFeature(feature, layer) {
+                // does this feature have a property named popupContent?
+                if (feature.properties && feature.properties.popupContent) {
+                    layer.bindPopup(feature.properties.popupContent);
+                }
+            }
+            // todo: darwin the dragon 
+
+            var geojsonFeature = {
+                "type": "Feature",
+                "properties": {
+                    "name": "The Stoop",
+                    "amenity": "Rugby Stadium",
+                    "popupContent": "This is where Quins play!"
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-0.34369, 51.44944, ]
+                }
+            };
+
+            var stoop = L.geoJSON(geojsonFeature, {
+                            pointToLayer: function (feature, latlng) {
+                                return L.circleMarker(latlng, progressMarkerOptions);
+                            }, 
+                            onEachFeature: onEachFeature
+                        }).addTo(mymap);
+            // todo: can we put the progress with a different colour? 
+        </script>
+
+        <script src="progress-g21.js"></script>
+
+        
+
+    </body>
+</html>
