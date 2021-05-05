@@ -92,12 +92,25 @@ namespace StravaGrab.App
             UpdateProgress(a, geojsonfilename, jsfilename, "Year to Date", output);
         }
 
-        static void Gvrat21() {
+        static void Gvrat21(bool js = false) {
             DateTime startDate = new DateTime(DateTime.Today.Year,5,1);
             DateTime endDate = new DateTime(DateTime.Today.Year,9,1);
-            double km = ListOfActivities(startDate, endDate, true).Select(a => a.Distance).Sum();
-            // todo: n.b. the feature collection in the downloaded GeoJson needs some TLC. 
-            UpdateProgress(km, "gvrat", "gvrat21", "Distance since May 1, true");
+            IEnumerable<Activity> activities = ListOfActivities(startDate, endDate, true).OrderBy(a => a.Date);
+            double totalkm = 0d;
+            foreach(Activity a in activities) 
+            {
+                Console.WriteLine(a);
+                totalkm += a.Distance;
+
+            }
+            int inches = 40734144; // at least that's what Laz says - https://gvrat.racing/faq/ 
+            double targetkm = (inches * 2.54) / (100 * 1000);
+            Console.WriteLine($"Progress: {totalkm:F3}km ({totalkm*100/targetkm:F1}%)");
+            double diff = (DateTime.Now - startDate).TotalDays * targetkm / totalkm;
+            Console.WriteLine($"Estimated finish: {startDate.AddDays(diff).ToShortDateString()}");
+            if(js)
+                // todo: n.b. the feature collection in the downloaded GeoJson needs some TLC. 
+                UpdateProgress(totalkm, "gvrat", "gvrat21", "Distance since May 1, true");
         }
 
         static void UpdateProgress(double km, string geojsonfilename, string jsfilename, string msg, bool output = false) {
@@ -107,7 +120,7 @@ namespace StravaGrab.App
                 Console.WriteLine($"run distance: {km:F2}");
 
             // get the route 
-            string json = File.ReadAllText($"pbf/{geojsonfilename}.geojson");
+            string json = File.ReadAllText($"pbf/{geojsonfilename}.geojson");   
 
             var featureCollection = JsonConvert.DeserializeObject<FeatureCollection>(json);
             //todo: last two features are first and last 
@@ -274,7 +287,6 @@ namespace StravaGrab.App
                     response = wb.DownloadString(fullrequest);                    
                 }
                 dynamic activities = JArray.Parse(response);
-                Console.WriteLine($"activites: {activities.Count}");
                 if(activities.Count == 0)
                     break;
                 foreach(dynamic activity in activities)

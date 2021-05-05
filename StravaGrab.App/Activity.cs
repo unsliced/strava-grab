@@ -12,6 +12,8 @@ namespace StravaGrab.App
 
         public double Distance => _km;
 
+        public DateTime Date => dt;
+
         public Activity(dynamic activity) {
             _type = activity.type;
             string start_date_local = activity.start_date_local;
