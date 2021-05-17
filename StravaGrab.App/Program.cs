@@ -20,7 +20,9 @@ namespace StravaGrab.App
     {
         static void Main(string[] args)
         {
-            Gvrat21();
+//            Gvrat21();
+
+            CalculatePremiershipTour();
 
             Parser
                 .Default
@@ -71,15 +73,59 @@ namespace StravaGrab.App
             Router router = new Router(rdb);
             Itinero.Profiles.Profile p = Itinero.Osm.Vehicles.Vehicle.Pedestrian.Shortest();
 
-            // todo: get https://github.com/itinero/optimization to work. 
-            // var res = router.CalculateTSP(Vehicle.Pedestrian.Shortest(), prem.Select(kvp => kvp.Value).Select(t => new Coordinate(t.Item1, t.Item2)).ToArray());
+            IDictionary<string, RouterPoint> points = 
+                prem.Select(t => t)
+                    .ToDictionary(t => t.Key, t => router.Resolve(p, t.Value.Item1, t.Value.Item2, 250));
 
-            var points = prem.Select(kvp => kvp.Value).Select(t => router.Resolve(p, t.Item1, t.Item2, 250)).ToList();
-            ISet<int> iset = new HashSet<int>();
-            float[][] matrix = router.CalculateWeight(p, points.ToArray(), iset); 
+
+            IDictionary<Tuple<string,string>, double> lookups = new Dictionary<Tuple<string,string>, double>();
+            foreach(string f in points.Keys.OrderBy(v => v)) {
+                foreach(string t in points.Keys.Where(t => t.CompareTo(f) > 0)) { 
+
+
+                    Route route = router.Calculate(Vehicle.Pedestrian.Shortest(), points[f], points[t]);       
+                    lookups.Add(new Tuple<string, string>(f,t), route.TotalDistance);
+                    if(output)     
+                        Console.WriteLine($"{f}:{t} = {route.TotalDistance}");
+                }
+            }
 
             // MST (e.g. via Prim's/Kruskal's) then a DFS bound by the cost of the MST 
             // https://cs.stackexchange.com/a/1805 
+            IList<string> visited = new List<string> ();
+            IList<Tuple<string,string>> pairs = new List<Tuple<string,string>>();
+            while(visited.Count < points.Count) {
+                double min = lookups.Select(t => t.Value).Max();
+                Tuple<string, string> t = null;
+                foreach(KeyValuePair<Tuple<string, string>, double> kvp in lookups) { 
+                    if(kvp.Value < min && 
+                        (visited.Count == 0 || visited.Contains(kvp.Key.Item1) || visited.Contains(kvp.Key.Item2)) && 
+                        !(visited.Contains(kvp.Key.Item1)  && visited.Contains(kvp.Key.Item2)))  {
+                        t = kvp.Key;
+                        min = kvp.Value;
+                    }
+                }
+                if(!visited.Contains(t.Item1))
+                    visited.Add(t.Item1);
+                if(!visited.Contains(t.Item2))
+                    visited.Add(t.Item2);
+                pairs.Add(t);
+            }
+
+            double mst = pairs.Select(p => lookups[p]).Sum() * 2;
+
+            Console.WriteLine($"minimal spanning tree/upper bound: {mst}"); 
+
+            // now for a DFS bounded by the MST 
+            
+
+
+            // todo: get https://github.com/itinero/optimization to work. 
+            // var res = router.CalculateTSP(Vehicle.Pedestrian.Shortest(), prem.Select(kvp => kvp.Value).Select(t => new Coordinate(t.Item1, t.Item2)).ToArray());
+
+//            ISet<int> iset = new HashSet<int>();
+  //          float[][] matrix = router.CalculateWeight(p, points.ToArray(), iset); 
+
 
 //            string fn = $"pbf//premiership.geojson";
 //            using (var writer = new StreamWriter(fn)) {
