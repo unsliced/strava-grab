@@ -12,6 +12,9 @@ namespace StravaGrab.App
             [Option('g', "gvrat", Required = false, HelpText = "load the GVRAT 2021 runs")]
             public bool Gvrat { get; set; }
 
+            [Option('w', "cycle-weekly", Required = false, HelpText = "give a weekly total by bike for this year, w/e Sundays")]
+            public bool CycleWeekly { get; set; }
+
             [Option('r', "router", Required = false, HelpText = "serialise the PBF file to a routerdb object")]
             public bool SerialiseRouter { get; set; }
 

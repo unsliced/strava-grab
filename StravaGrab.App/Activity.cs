@@ -11,7 +11,7 @@ namespace StravaGrab.App
         string _id;
 
         public double Distance => _km;
-
+        public bool IsBike => _type == "Ride";
         public DateTime Date => dt;
 
         public Activity(dynamic activity) {
@@ -31,6 +31,7 @@ namespace StravaGrab.App
         public bool Qualifying(bool onlyRunning, DateTime startDate, DateTime? endDate = null) {
             return (!onlyRunning || (onlyRunning && _type == "Run")) && dt >= startDate && (!endDate.HasValue || dt < endDate.Value);
         }
+
 
         public override string ToString()
         {

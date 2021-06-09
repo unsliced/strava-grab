@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,9 +21,10 @@ namespace StravaGrab.App
     {
         static void Main(string[] args)
         {
-//            Gvrat21();
+//            CyclingWeekly();
+            // Gvrat21();
 
-            CalculatePremiershipTour();
+//            CalculatePremiershipTour();
 
             Parser
                 .Default
@@ -35,6 +37,10 @@ namespace StravaGrab.App
                             AnnualDistance(false);
                         if(o.SerialiseRouter)
                             SerialiseRouter();
+                        if(o.Gvrat)
+                            Gvrat21();
+                        if(o.CycleWeekly)
+                            CyclingWeekly();
                         if(!string.IsNullOrEmpty(o.Destination)) 
                             HomeTo(o.Destination, o.CacheDestination);
                         if(!string.IsNullOrEmpty(o.GeoJson) && !string.IsNullOrEmpty(o.Js))
@@ -138,19 +144,88 @@ namespace StravaGrab.App
             UpdateProgress(a, geojsonfilename, jsfilename, "Year to Date", output);
         }
 
+        // nabbed from https://stackoverflow.com/a/11155102/2902
+        // This presumes that weeks start with Monday.
+        // Week 1 is the 1st week of the year with a Thursday in it.
+        public static int GetIso8601WeekOfYear(DateTime time)
+        {
+            // Seriously cheat.  If its Monday, Tuesday or Wednesday, then it'll 
+            // be the same week# as whatever Thursday, Friday or Saturday are,
+            // and we always get those right
+            DayOfWeek day = CultureInfo.InvariantCulture.Calendar.GetDayOfWeek(time);
+            if (day >= DayOfWeek.Monday && day <= DayOfWeek.Wednesday)
+            {
+                time = time.AddDays(3);
+            }
+
+            // Return the week of our adjusted day
+            return CultureInfo.InvariantCulture.Calendar.GetWeekOfYear(time, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+        } 
+
+        // based on https://stackoverflow.com/questions/662379/calculate-date-from-week-number
+        public static DateTime LastDateOfWeekISO8601(int year, int weekOfYear)
+        {
+            DateTime jan1 = new DateTime(year, 1, 1);
+            int daysOffset = DayOfWeek.Thursday - jan1.DayOfWeek;
+
+            // Use first Thursday in January to get first week of the year as
+            // it will never be in Week 52/53
+            DateTime firstThursday = jan1.AddDays(daysOffset);
+            var cal = CultureInfo.CurrentCulture.Calendar;
+            int firstWeek = cal.GetWeekOfYear(firstThursday, CalendarWeekRule.FirstFourDayWeek, DayOfWeek.Monday);
+
+            var weekNum = weekOfYear;
+            // As we're adding days to a date in Week 1,
+            // we need to subtract 1 in order to get the right date for week #1
+            if (firstWeek == 1)
+            {
+                weekNum -= 1;
+            }
+
+            // Using the first Thursday as starting week ensures that we are starting in the right year
+            // then we add number of weeks multiplied with days
+            var result = firstThursday.AddDays(weekNum * 7);
+
+            // Add 3 days from Thursday to get the Sunday, which is the last day of the week containing the first weekday in ISO8601
+            return result.AddDays(3);
+        }       
+
+        static void CyclingWeekly(bool lastyear = false) { 
+            int offset = lastyear ? 1 : 0;
+
+            DateTime startDate = new DateTime(DateTime.Today.Year-offset,1,1);
+            DateTime endDate = lastyear ? new DateTime(DateTime.Today.Year,1,1).AddDays(-1) : DateTime.Today;
+            IEnumerable<Activity> activities = ListOfActivities(startDate, endDate, false).Where(a => a.IsBike).OrderBy(a => a.Date);
+            IList<double> buckets = Enumerable.Repeat(0d, 53).ToList(); 
+            int w = 0;
+            
+            foreach(Activity a in activities) {
+                int i = GetIso8601WeekOfYear(a.Date)-1;
+                buckets[i] += a.Distance;
+                if(i > w)
+                    w = i;
+            }
+            for(int i = 0; i <= w; ++i) {
+                DateTime dt = LastDateOfWeekISO8601(DateTime.Today.Year, i+1).AddDays(6);
+                Console.WriteLine($"{dt.ToShortDateString()}: {buckets[i]:F2}");
+            }
+        }
+
         static void Gvrat21(bool js = false) {
             DateTime startDate = new DateTime(DateTime.Today.Year,5,1);
             DateTime endDate = new DateTime(DateTime.Today.Year,9,1);
             IEnumerable<Activity> activities = ListOfActivities(startDate, endDate, true).OrderBy(a => a.Date);
             double totalkm = 0d;
+            int counter = 0;
             foreach(Activity a in activities) 
             {
                 Console.WriteLine(a);
                 totalkm += a.Distance;
-
+                ++counter;
             }
             int inches = 40734144; // at least that's what Laz says - https://gvrat.racing/faq/ 
             double targetkm = (inches * 2.54) / (100 * 1000);
+            Console.WriteLine($"{counter} activities");
             Console.WriteLine($"Progress: {totalkm:F3}km ({totalkm*100/targetkm:F1}%)");
             double diff = (DateTime.Now - startDate).TotalDays * targetkm / totalkm;
             Console.WriteLine($"Estimated finish: {startDate.AddDays(diff).ToShortDateString()}");
@@ -321,6 +396,7 @@ namespace StravaGrab.App
             
             long seconds = new DateTimeOffset(startingFrom).ToUnixTimeSeconds();
             IList<Activity> rv = new List<Activity>();
+            try{
             while(true) {
                 string fullrequest = $"{url}?access_token={access_token}&per_page=200&page={page}&after={seconds}";
                 if(endingAt.HasValue) {
@@ -345,6 +421,11 @@ namespace StravaGrab.App
                 }
                 ++page;
             }
+            } catch(Exception e) {
+                Console.WriteLine($"Problem hitting Strava. You are connected?");
+                Console.WriteLine($"{e.Message}");
+            }
+            
             return rv;
         }            
     }
