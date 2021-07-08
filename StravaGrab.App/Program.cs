@@ -22,7 +22,7 @@ namespace StravaGrab.App
         static void Main(string[] args)
         {
 //            CyclingWeekly();
-            // Gvrat21();
+             Gvrat21();
 
 //            CalculatePremiershipTour();
 
@@ -224,11 +224,20 @@ namespace StravaGrab.App
                 ++counter;
             }
             int inches = 40734144; // at least that's what Laz says - https://gvrat.racing/faq/ 
-            double targetkm = (inches * 2.54) / (100 * 1000);
+            double targetKilometres = (inches * 2.54) / (100 * 1000);
             Console.WriteLine($"{counter} activities");
-            Console.WriteLine($"Progress: {totalkm:F3}km ({totalkm*100/targetkm:F1}%)");
-            double diff = (DateTime.Now - startDate).TotalDays * targetkm / totalkm;
+            Console.WriteLine($"Progress: {totalkm:F3}km ({totalkm*100/targetKilometres:F1}%)");
+            double diff = (DateTime.Now - startDate).TotalDays * targetKilometres / totalkm;
             Console.WriteLine($"Estimated finish: {startDate.AddDays(diff).ToShortDateString()}");
+
+            double diff2 = (DateTime.Now - startDate).TotalDays * (1000 * Activity.KilometreToMiles) / totalkm;
+            Console.WriteLine($"Estimated 1000 finish: {startDate.AddDays(diff2).ToShortDateString()}");
+
+            double diff3 = (DateTime.Now - startDate).TotalDays * (2 * targetKilometres) / totalkm;
+            Console.WriteLine($"Estimated BAT finish: {startDate.AddDays(diff3).ToShortDateString()}");
+
+
+
             if(js)
                 // todo: n.b. the feature collection in the downloaded GeoJson needs some TLC. 
                 UpdateProgress(totalkm, "gvrat", "gvrat21", "Distance since May 1, true");

@@ -10,7 +10,11 @@ namespace StravaGrab.App
         TimeSpan _time;
         string _id;
 
+        public static double KilometreToMiles = 0.621371; 
+
         public double Distance => _km;
+        public double Miles => KilometreToMiles * Distance; // todo: euch. is there a better, built-in conversion routine?
+
         public bool IsBike => _type == "Ride";
         public DateTime Date => dt;
 
@@ -33,11 +37,10 @@ namespace StravaGrab.App
         }
 
 
+
         public override string ToString()
         {
-            double conv_fac = 0.621371; // todo: euch. is there a better, built-in conversion routine?
-
-            return ($"{dt.ToShortDateString()}: {_km:F2}km/{_km*conv_fac:F2}mi {_time.ToString(@"hh\:mm\:ss")} [https://www.strava.com/activities/{_id}]");
+            return ($"{dt.ToShortDateString()}: {_km:F2}km/{Miles:F2}mi {_time.ToString(@"hh\:mm\:ss")} [https://www.strava.com/activities/{_id}]");
         }
     }
 }
