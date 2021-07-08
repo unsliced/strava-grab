@@ -22,7 +22,7 @@ namespace StravaGrab.App
         static void Main(string[] args)
         {
 //            CyclingWeekly();
-            // Gvrat21();
+             Gvrat21();
 
 //            CalculatePremiershipTour();
 

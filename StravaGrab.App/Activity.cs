@@ -10,7 +10,7 @@ namespace StravaGrab.App
         TimeSpan _time;
         string _id;
 
-        public static double KilometreToMiles = 1/0.621371; 
+        public static double KilometreToMiles = 0.621371; 
 
         public double Distance => _km;
         public double Miles => KilometreToMiles * Distance; // todo: euch. is there a better, built-in conversion routine?
@@ -40,7 +40,7 @@ namespace StravaGrab.App
 
         public override string ToString()
         {
-            return ($"{dt.ToShortDateString()}: {_km:F2}km/{_km*Miles:F2}mi {_time.ToString(@"hh\:mm\:ss")} [https://www.strava.com/activities/{_id}]");
+            return ($"{dt.ToShortDateString()}: {_km:F2}km/{Miles:F2}mi {_time.ToString(@"hh\:mm\:ss")} [https://www.strava.com/activities/{_id}]");
         }
     }
 }
