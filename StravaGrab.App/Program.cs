@@ -26,9 +26,9 @@ namespace StravaGrab.App
 //            CyclingWeekly();
 //             Gvrat21();
 //            Export2Mongo("mongodb://192.168.1.17:27017/", 2020);
-//            UpdateMongo("mongodb://192.168.1.17:27017/", true);
+            // UpdateMongoLaps("mongodb://192.168.1.17:27017/", 90);
 
-            UpdateMongoLaps("mongodb://192.168.1.17:27017/", 90);
+            HeartRateSummary("mongodb://192.168.1.17:27017/");
 
             Parser
                 .Default
@@ -214,6 +214,53 @@ namespace StravaGrab.App
                 DateTime dt = LastDateOfWeekISO8601(DateTime.Today.Year, i+1).AddDays(6);
                 Console.WriteLine($"{dt.ToShortDateString()}: {buckets[i]:F2}");
             }
+        }
+
+        static void HeartRateSummary(string clientName, int days = 30) {
+            var client = new MongoClient(clientName);
+            var database = client.GetDatabase("running");
+            var summaryCollection = database.GetCollection<BsonDocument>("summary");
+            var lapsCollection = database.GetCollection<BsonDocument>("laps");
+
+            var recentFilter = Builders<BsonDocument>.Filter.Gte("dt", DateTime.Today.AddDays(-days));
+            var projection = Builders<BsonDocument>.Projection.Include("strava_id").Include("dt");
+            var recentIDs = summaryCollection.Find(recentFilter).Project(projection).ToList().Select(x => new {id = x["strava_id"], dt = x["dt"]}).ToList();
+
+            IDictionary<Tuple<int,int>,int> d = new Dictionary<Tuple<int,int>,int>();
+
+            var idFilter = Builders<BsonDocument>.Filter.In("strava_id", recentIDs.Select(i => i.id));
+            var lapProjection = Builders<BsonDocument>.Projection.Include("s").Include("m").Include("ahr");
+
+            foreach(var lap in lapsCollection.Find(idFilter).Project(lapProjection).ToList()) {
+                int m = lap["m"].AsInt32;
+                int s = lap["s"].AsInt32;
+                
+                int tm = (int)((1000d/(float)m)*(float)s);
+                var id = new Tuple<int,int>(tm, lap["ahr"].AsInt32);
+                int currentCount;
+                d.TryGetValue(id, out currentCount);
+                d[id] = currentCount + 1;
+            }
+
+            foreach(KeyValuePair<Tuple<int,int>, int> kvp in d) {
+                Console.WriteLine($"{kvp.Key.Item1} / {kvp.Key.Item2} / {kvp.Value}");
+            }
+
+        }
+
+        static void UpdateMongoLaps(string clientName, int days=90) {
+            var client = new MongoClient(clientName);
+            var database = client.GetDatabase("running");
+            var summaryCollection = database.GetCollection<BsonDocument>("summary");
+            var lapsCollection = database.GetCollection<BsonDocument>("laps");
+
+            var recentFilter = Builders<BsonDocument>.Filter.Gte("dt", DateTime.Today.AddDays(-days));
+            var projection = Builders<BsonDocument>.Projection.Include("strava_id");
+            var recentIDs = summaryCollection.Find(recentFilter).Project(projection).ToList().Select(x => x["strava_id"]).ToList();
+
+            foreach(string id in recentIDs)
+                lapsCollection.InsertMany(GetActivityLaps(id).Select(l => l.ToBsonDocument()).ToList());
+        
         }
 
         static void UpdateMongo(string clientName, bool trace) {
@@ -531,7 +578,7 @@ namespace StravaGrab.App
 
             foreach(dynamic slap in slaps)
             { 
-                laps.Add(new StravaLap(slap));
+                laps.Add(new StravaLap(id, slap));
                 // name moving_time distance total_elevation_gain average_cadence average_heartrate 
                 // Console.WriteLine($"{new StravaLap(slap)}");
             }
@@ -542,8 +589,9 @@ namespace StravaGrab.App
     }
 
     class StravaLap {
-        string _id;
-        int _lap_id;
+        string _strava_id;
+        string _lap_id;
+        int _lap_number;
         string _lap_name;
         int _moving;
         int _metres;
@@ -551,9 +599,10 @@ namespace StravaGrab.App
         int _cadence;
         int _ahr;
 
-        public StravaLap(dynamic slap) {
-            _id = slap.id;
-            _lap_id = slap.lap_index;
+        public StravaLap(string strava_id, dynamic slap) {
+            _strava_id = strava_id;
+            _lap_id = slap.id;
+            _lap_number = slap.lap_index;
             _lap_name = slap.name;
             _moving = slap.moving_time;
             _metres = slap.distance;
@@ -564,13 +613,14 @@ namespace StravaGrab.App
 
         public override string ToString()
         {
-            return $"{_id} / {_lap_id} / {_lap_name} / {_moving} / {_metres} / {_ahr}";
+            return $"{_strava_id} / {_lap_id} / {_lap_number} / {_lap_name} / {_moving} / {_metres} / {_ahr}";
         }
         public BsonDocument ToBsonDocument()
         {
             var document = new BsonDocument { 
-                {"strava_id", _id},
-                {"lap", _lap_id},
+                {"strava_id", _strava_id},
+                {"lap_id", _lap_id},
+                {"lap", _lap_number},
                 {"s", _moving},
                 {"m", _metres},
                 {"ahr", _ahr}
