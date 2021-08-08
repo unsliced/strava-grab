@@ -12,6 +12,9 @@ namespace StravaGrab.App
             [Option('g', "gvrat", Required = false, HelpText = "load the GVRAT 2021 runs")]
             public bool Gvrat { get; set; }
 
+            [Option('m', "monogo", Required = false, HelpText = "update the local mongodb summary")]
+            public bool Mongo { get; set; }
+
             [Option('w', "cycle-weekly", Required = false, HelpText = "give a weekly total by bike for this year, w/e Sundays")]
             public bool CycleWeekly { get; set; }
 

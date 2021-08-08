@@ -133,3 +133,5 @@ dmypy.json
 .json 
 secrets.txt
 .csv
+StravaGrab.App/strava_tokens.json
+StravaGrab.App/.vscode/launch.json

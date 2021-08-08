@@ -12,6 +12,8 @@ using Itinero.IO.Osm;
 using Itinero.Osm.Vehicles;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace StravaGrab.App
 {
@@ -22,9 +24,9 @@ namespace StravaGrab.App
         static void Main(string[] args)
         {
 //            CyclingWeekly();
-             Gvrat21();
-
-//            CalculatePremiershipTour();
+//             Gvrat21();
+//            Export2Mongo("mongodb://192.168.1.17:27017/", 2020);
+            UpdateMongo("mongodb://192.168.1.17:27017/", true);
 
             Parser
                 .Default
@@ -45,7 +47,8 @@ namespace StravaGrab.App
                             HomeTo(o.Destination, o.CacheDestination);
                         if(!string.IsNullOrEmpty(o.GeoJson) && !string.IsNullOrEmpty(o.Js))
                             AnnualProgress(o.GeoJson, o.Js, o.Debug);
-                       
+                       if(o.Mongo)
+                            UpdateMongo("mongodb://192.168.1.17:27017/", true);
                    });
 
             // todo: need to route of approx. 3650km 
@@ -209,6 +212,67 @@ namespace StravaGrab.App
                 DateTime dt = LastDateOfWeekISO8601(DateTime.Today.Year, i+1).AddDays(6);
                 Console.WriteLine($"{dt.ToShortDateString()}: {buckets[i]:F2}");
             }
+        }
+
+        static void UpdateMongo(string clientName, bool trace) {
+            var client = new MongoClient(clientName);
+            var database = client.GetDatabase("running");
+            var collection = database.GetCollection<BsonDocument>("summary");
+
+            // get the latest date - https://stackoverflow.com/questions/32076382/mongodb-how-to-get-max-value-from-collections
+            var lastYearFilter = Builders<BsonDocument>.Filter.Gte("dt", new BsonDateTime(DateTime.Today.AddYears(-1)));
+            var sort = Builders<BsonDocument>.Sort.Descending("dt");
+            var lastyear = collection.Find(lastYearFilter).Sort(sort);
+            var mostrecent = lastyear.First().AsBsonDocument;
+            DateTime dt;
+            try {
+                dt = mostrecent["dt"].AsBsonDateTime.ToUniversalTime();      
+            } catch(InvalidCastException){
+                dt = DateTime.Today.AddYears(-1);
+            }
+
+            // get the ids for those within a week 
+
+            var recentFilter = Builders<BsonDocument>.Filter.Gte("dt", dt.AddDays(-7));
+            var projection = Builders<BsonDocument>.Projection.Include("strava_id");
+            var recentIDs = collection.Find(recentFilter).Project(projection).ToList().Select(x => x["strava_id"]).ToList();
+
+            // ask strava for a week before the latest date
+            IEnumerable<Activity> activities = ListOfActivities(dt, null, true).OrderBy(a => a.Date);
+
+            IList<BsonDocument> toAdd = new List<BsonDocument>();
+            foreach(Activity a in activities)
+            {
+                if(!recentIDs.Contains(a.StravaId)) {
+                    toAdd.Add(a.ToBsonDocument());
+                }
+            }
+
+            // add any for which the ids is not available 
+            if(toAdd.Count > 0) {
+                collection.InsertMany(toAdd);
+                if(trace)
+                    Console.WriteLine($"added {toAdd.Count} entries");
+            }
+        }
+
+        static void Export2Mongo(string clientName, int? year = null) {
+            DateTime startDate = new DateTime(year.HasValue ? year.Value : DateTime.Today.Year,1,1);
+            DateTime endDate = new DateTime(year.HasValue ? year.Value : DateTime.Today.Year,12,31);
+
+            // todo: if it's this year look at the db to get the new starting date - make sure you don't add any ids that are already in there 
+            IEnumerable<Activity> activities = ListOfActivities(startDate, endDate, true).OrderBy(a => a.Date);
+
+            var client = new MongoClient(clientName);
+            var database = client.GetDatabase("running");
+            var collection = database.GetCollection<BsonDocument>("summary");
+
+            foreach(Activity a in activities) 
+            {
+                BsonDocument doc = a.ToBsonDocument();
+                collection.InsertOne(doc);
+            }
+
         }
 
         static void Gvrat21(bool js = false) {
@@ -405,34 +469,36 @@ namespace StravaGrab.App
             
             long seconds = new DateTimeOffset(startingFrom).ToUnixTimeSeconds();
             IList<Activity> rv = new List<Activity>();
+            string response = string.Empty;
             try{
-            while(true) {
-                string fullrequest = $"{url}?access_token={access_token}&per_page=200&page={page}&after={seconds}";
-                if(endingAt.HasValue) {
-                    long seconds2 = new DateTimeOffset(endingAt.Value).ToUnixTimeSeconds();
-                    fullrequest += $"&before={seconds2}";
-                }
-                string response;
-                using (var wb = new WebClient())
-                {
-                    response = wb.DownloadString(fullrequest);                    
-                }
-                dynamic activities = JArray.Parse(response);
-                if(activities.Count == 0)
-                    break;
-                foreach(dynamic activity in activities)
-                {
-                    Activity a = new Activity(activity);
-                    if(!a.Qualifying(onlyRunning, startingFrom, endingAt))
-                        continue;                   
+                while(true) {
+                    string fullrequest = $"{url}?access_token={access_token}&per_page=200&page={page}&after={seconds}";
+                    if(endingAt.HasValue) {
+                        long seconds2 = new DateTimeOffset(endingAt.Value).ToUnixTimeSeconds();
+                        fullrequest += $"&before={seconds2}";
+                    }
+                    using (var wb = new WebClient())
+                    {
+                        response = wb.DownloadString(fullrequest);                    
+                    }
+                    dynamic activities = JArray.Parse(response);
+                    if(activities.Count == 0)
+                        break;
+                    foreach(dynamic activity in activities)
+                    {
+                        Activity a = new Activity(activity);
+                        if(!a.Qualifying(onlyRunning, startingFrom, endingAt))
+                            continue;                   
 
-                    rv.Add(a); 
+                        rv.Add(a); 
+                    }
+                    ++page;
                 }
-                ++page;
-            }
             } catch(Exception e) {
                 Console.WriteLine($"Problem hitting Strava. You are connected?");
                 Console.WriteLine($"{e.Message}");
+                Console.WriteLine($"{response}");
+                throw;
             }
             
             return rv;
