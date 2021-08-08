@@ -249,11 +249,11 @@ namespace StravaGrab.App
             }
 
             // add any for which the ids is not available 
-            if(toAdd.Count > 0) {
+            if(toAdd.Count > 0) 
                 collection.InsertMany(toAdd);
-                if(trace)
-                    Console.WriteLine($"added {toAdd.Count} entries");
-            }
+            if(trace)
+                Console.WriteLine($"added {toAdd.Count} entries");
+
         }
 
         static void Export2Mongo(string clientName, int? year = null) {
@@ -464,35 +464,42 @@ namespace StravaGrab.App
         static IList<Activity> ListOfActivities(DateTime startingFrom, DateTime? endingAt, bool onlyRunning = true){
             string access_token = StravaToken.GetStravaAccessToken();
             int page = 1;
-            string url = "https://www.strava.com/api/v3/activities";
 
             
             long seconds = new DateTimeOffset(startingFrom).ToUnixTimeSeconds();
             IList<Activity> rv = new List<Activity>();
-            string response = string.Empty;
-            try{
-                while(true) {
-                    string fullrequest = $"{url}?access_token={access_token}&per_page=200&page={page}&after={seconds}";
-                    if(endingAt.HasValue) {
-                        long seconds2 = new DateTimeOffset(endingAt.Value).ToUnixTimeSeconds();
-                        fullrequest += $"&before={seconds2}";
-                    }
-                    using (var wb = new WebClient())
-                    {
-                        response = wb.DownloadString(fullrequest);                    
-                    }
-                    dynamic activities = JArray.Parse(response);
-                    if(activities.Count == 0)
-                        break;
-                    foreach(dynamic activity in activities)
-                    {
-                        Activity a = new Activity(activity);
-                        if(!a.Qualifying(onlyRunning, startingFrom, endingAt))
-                            continue;                   
+            while(true) {
+                string request = $"access_token={access_token}&per_page=200&page={page}&after={seconds}";
+                if(endingAt.HasValue) {
+                    long seconds2 = new DateTimeOffset(endingAt.Value).ToUnixTimeSeconds();
+                    request += $"&before={seconds2}";                        
+                }
+                string response = GetStravaResponse(request);
+                dynamic activities = JArray.Parse(response);
+                if(activities.Count == 0)
+                    break;
+                foreach(dynamic activity in activities)
+                {
+                    Activity a = new Activity(activity);
+                    if(!a.Qualifying(onlyRunning, startingFrom, endingAt))
+                        continue;                   
 
-                        rv.Add(a); 
-                    }
-                    ++page;
+                    rv.Add(a); 
+                }
+                ++page;
+            }
+            
+            return rv;
+        }   
+
+        static string GetStravaResponse(string request) {
+            string url = "https://www.strava.com/api/v3/activities";
+            string response = string.Empty;
+
+            try {
+                using (var wb = new WebClient())
+                {
+                    response = wb.DownloadString($"{url}?{request}");
                 }
             } catch(Exception e) {
                 Console.WriteLine($"Problem hitting Strava. You are connected?");
@@ -500,8 +507,7 @@ namespace StravaGrab.App
                 Console.WriteLine($"{response}");
                 throw;
             }
-            
-            return rv;
-        }            
+            return response;
+        }
     }
 }
