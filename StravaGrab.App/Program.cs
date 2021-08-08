@@ -462,14 +462,11 @@ namespace StravaGrab.App
         }
 
         static IList<Activity> ListOfActivities(DateTime startingFrom, DateTime? endingAt, bool onlyRunning = true){
-            string access_token = StravaToken.GetStravaAccessToken();
-            int page = 1;
-
-            
+            int page = 1;            
             long seconds = new DateTimeOffset(startingFrom).ToUnixTimeSeconds();
             IList<Activity> rv = new List<Activity>();
             while(true) {
-                string request = $"access_token={access_token}&per_page=200&page={page}&after={seconds}";
+                string request = $"per_page=200&page={page}&after={seconds}";
                 if(endingAt.HasValue) {
                     long seconds2 = new DateTimeOffset(endingAt.Value).ToUnixTimeSeconds();
                     request += $"&before={seconds2}";                        
@@ -494,12 +491,13 @@ namespace StravaGrab.App
 
         static string GetStravaResponse(string request) {
             string url = "https://www.strava.com/api/v3/activities";
+            string access_token = StravaToken.GetStravaAccessToken();
             string response = string.Empty;
 
             try {
                 using (var wb = new WebClient())
                 {
-                    response = wb.DownloadString($"{url}?{request}");
+                    response = wb.DownloadString($"{url}?access_token={access_token}&{request}");
                 }
             } catch(Exception e) {
                 Console.WriteLine($"Problem hitting Strava. You are connected?");
@@ -509,5 +507,8 @@ namespace StravaGrab.App
             }
             return response;
         }
+
+//        static IList<StravaLap> GetActivityLaps(string id )
+        
     }
 }
