@@ -26,7 +26,9 @@ namespace StravaGrab.App
 //            CyclingWeekly();
 //             Gvrat21();
 //            Export2Mongo("mongodb://192.168.1.17:27017/", 2020);
-            UpdateMongo("mongodb://192.168.1.17:27017/", true);
+//            UpdateMongo("mongodb://192.168.1.17:27017/", true);
+
+            UpdateMongoLaps("mongodb://192.168.1.17:27017/", 90);
 
             Parser
                 .Default
@@ -217,12 +219,14 @@ namespace StravaGrab.App
         static void UpdateMongo(string clientName, bool trace) {
             var client = new MongoClient(clientName);
             var database = client.GetDatabase("running");
-            var collection = database.GetCollection<BsonDocument>("summary");
+            var summaryCollection = database.GetCollection<BsonDocument>("summary");
+            var lapsCollection = database.GetCollection<BsonDocument>("laps");
+            
 
             // get the latest date - https://stackoverflow.com/questions/32076382/mongodb-how-to-get-max-value-from-collections
             var lastYearFilter = Builders<BsonDocument>.Filter.Gte("dt", new BsonDateTime(DateTime.Today.AddYears(-1)));
             var sort = Builders<BsonDocument>.Sort.Descending("dt");
-            var lastyear = collection.Find(lastYearFilter).Sort(sort);
+            var lastyear = summaryCollection.Find(lastYearFilter).Sort(sort);
             var mostrecent = lastyear.First().AsBsonDocument;
             DateTime dt;
             try {
@@ -235,24 +239,26 @@ namespace StravaGrab.App
 
             var recentFilter = Builders<BsonDocument>.Filter.Gte("dt", dt.AddDays(-7));
             var projection = Builders<BsonDocument>.Projection.Include("strava_id");
-            var recentIDs = collection.Find(recentFilter).Project(projection).ToList().Select(x => x["strava_id"]).ToList();
+            var recentIDs = summaryCollection.Find(recentFilter).Project(projection).ToList().Select(x => x["strava_id"]).ToList();
 
             // ask strava for a week before the latest date
             IEnumerable<Activity> activities = ListOfActivities(dt, null, true).OrderBy(a => a.Date);
 
-            IList<BsonDocument> toAdd = new List<BsonDocument>();
+            IList<BsonDocument> activitiesToAdd = new List<BsonDocument>();
             foreach(Activity a in activities)
             {
                 if(!recentIDs.Contains(a.StravaId)) {
-                    toAdd.Add(a.ToBsonDocument());
+                    activitiesToAdd.Add(a.ToBsonDocument());
+                    lapsCollection.InsertMany(GetActivityLaps(a.StravaId).Select(l => l.ToBsonDocument()).ToList());
+                    // nb. this assumes that laps and activites are in lockstep 
                 }
             }
 
             // add any for which the ids is not available 
-            if(toAdd.Count > 0) 
-                collection.InsertMany(toAdd);
+            if(activitiesToAdd.Count > 0) 
+                summaryCollection.InsertMany(activitiesToAdd);
             if(trace)
-                Console.WriteLine($"added {toAdd.Count} entries");
+                Console.WriteLine($"added {activitiesToAdd.Count} entries");
 
         }
 
@@ -489,15 +495,24 @@ namespace StravaGrab.App
             return rv;
         }   
 
-        static string GetStravaResponse(string request) {
+        static string GetStravaResponse(string request = "", string path = "") {
             string url = "https://www.strava.com/api/v3/activities";
             string access_token = StravaToken.GetStravaAccessToken();
             string response = string.Empty;
 
+
+
+            if(!string.IsNullOrEmpty(path))
+                url += "/" + path;
+
+            url += $"?access_token={access_token}"; 
+            if(!string.IsNullOrEmpty(request))
+                url += "&" + request;
+
             try {
                 using (var wb = new WebClient())
                 {
-                    response = wb.DownloadString($"{url}?access_token={access_token}&{request}");
+                    response = wb.DownloadString(url);
                 }
             } catch(Exception e) {
                 Console.WriteLine($"Problem hitting Strava. You are connected?");
@@ -508,7 +523,60 @@ namespace StravaGrab.App
             return response;
         }
 
-//        static IList<StravaLap> GetActivityLaps(string id )
+        static IList<StravaLap> GetActivityLaps(string id) {
+            IList<StravaLap> laps = new List<StravaLap>();
+            string response = GetStravaResponse(path: $"{id}/laps");
+            dynamic slaps = JArray.Parse(response);
+           
+
+            foreach(dynamic slap in slaps)
+            { 
+                laps.Add(new StravaLap(slap));
+                // name moving_time distance total_elevation_gain average_cadence average_heartrate 
+                // Console.WriteLine($"{new StravaLap(slap)}");
+            }
+
+            return laps;
+        }
         
+    }
+
+    class StravaLap {
+        string _id;
+        int _lap_id;
+        string _lap_name;
+        int _moving;
+        int _metres;
+        int _elevation;
+        int _cadence;
+        int _ahr;
+
+        public StravaLap(dynamic slap) {
+            _id = slap.id;
+            _lap_id = slap.lap_index;
+            _lap_name = slap.name;
+            _moving = slap.moving_time;
+            _metres = slap.distance;
+            _elevation = slap.total_elevation_gain; 
+            _cadence = slap.average_cadence; 
+            _ahr = slap.average_heartrate; 
+        }
+
+        public override string ToString()
+        {
+            return $"{_id} / {_lap_id} / {_lap_name} / {_moving} / {_metres} / {_ahr}";
+        }
+        public BsonDocument ToBsonDocument()
+        {
+            var document = new BsonDocument { 
+                {"strava_id", _id},
+                {"lap", _lap_id},
+                {"s", _moving},
+                {"m", _metres},
+                {"ahr", _ahr}
+
+            };
+            return document; 
+        }
     }
 }
