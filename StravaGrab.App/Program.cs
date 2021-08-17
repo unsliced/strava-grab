@@ -18,7 +18,6 @@ using MongoDB.Driver;
 namespace StravaGrab.App
 {
     // todo: install on a Pi4: https://docs.microsoft.com/en-us/dotnet/iot/deployment 
-    // todo: extract personal information to a git ignored json file   
     partial class Program
     {
         static void Main(string[] args)
@@ -26,9 +25,9 @@ namespace StravaGrab.App
 //            CyclingWeekly();
 //             Gvrat21();
 //            Export2Mongo("mongodb://192.168.1.17:27017/", 2020);
-            // UpdateMongoLaps("mongodb://192.168.1.17:27017/", 90);
-
-            HeartRateSummary("mongodb://192.168.1.17:27017/");
+//             RepopulateMongoLaps("mongodb://192.168.1.17:27017/", 100);
+            UpdateMongo("mongodb://192.168.1.17:27017/", true);
+            // HeartRateSummary("mongodb://192.168.1.17:27017/");
 
             Parser
                 .Default
@@ -50,10 +49,10 @@ namespace StravaGrab.App
                         if(!string.IsNullOrEmpty(o.GeoJson) && !string.IsNullOrEmpty(o.Js))
                             AnnualProgress(o.GeoJson, o.Js, o.Debug);
                        if(o.Mongo)
-                            UpdateMongo("mongodb://192.168.1.17:27017/", true);
+                            UpdateMongo("mongodb://192.168.1.17:27017/", o.Debug);
                    });
 
-            // todo: need to route of approx. 3650km 
+            // TODO: need to route of approx. 3650km 
         }
 
         static void CalculatePremiershipTour(bool output = false) {
@@ -248,7 +247,8 @@ namespace StravaGrab.App
 
         }
 
-        static void UpdateMongoLaps(string clientName, int days=90) {
+        // this is something of the nuclear option - if you rejig the StravaLap class, re-run this to backpopulate for the previous few days 
+        static void RepopulateMongoLaps(string clientName, int days=90) {
             var client = new MongoClient(clientName);
             var database = client.GetDatabase("running");
             var summaryCollection = database.GetCollection<BsonDocument>("summary");
@@ -282,7 +282,7 @@ namespace StravaGrab.App
                 dt = DateTime.Today.AddYears(-1);
             }
 
-            // get the ids for those within a week 
+            // get the ids for those within a week of that date, just in case 
 
             var recentFilter = Builders<BsonDocument>.Filter.Gte("dt", dt.AddDays(-7));
             var projection = Builders<BsonDocument>.Projection.Include("strava_id");
