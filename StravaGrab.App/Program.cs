@@ -26,9 +26,10 @@ namespace StravaGrab.App
 //             Gvrat21();
 //            Export2Mongo("mongodb://192.168.1.17:27017/", 2020);
 //             RepopulateMongoLaps("mongodb://192.168.1.17:27017/", 100);
-            UpdateMongo("mongodb://192.168.1.17:27017/", true);
+            // UpdateMongo("mongodb://192.168.1.17:27017/", true);
             // HeartRateSummary("mongodb://192.168.1.17:27017/");
 
+            MonthlyTotal(3650);
             Parser
                 .Default
                 .ParseArguments<CommandLineOptions>(args)
@@ -514,6 +515,18 @@ namespace StravaGrab.App
             Console.WriteLine($"total distance(km): {totalkm:F3}");
         }
 
+        static double MonthlyTotal(int target) {
+            IList<Activity> thisYear = ListOfActivities(new DateTime(DateTime.Today.Year, 1, 1), null, true);
+            for(int i = 0; i < 12; ++i) {
+                Console.WriteLine($"{new DateTime(DateTime.Today.Year, i + 1, 1).ToString("MMM")}: {thisYear.Where(a => a.Date.Month == i + 1).Select(a => a.Distance).Sum():F0}");
+            }
+            int daysRemaining = (new DateTime(DateTime.Today.Year + 1, 1, 1) - DateTime.Today).Days;
+            if(thisYear.Where(a => a.Date == DateTime.Today).Count() >= 1)
+                daysRemaining -= 1;
+            double kmRemaining = (double)target - thisYear.Select(a => a.Distance).Sum();
+            Console.WriteLine($"{daysRemaining} remaining to run {kmRemaining:F2} => {kmRemaining/daysRemaining:F2} km/d⁻ⁱ");
+            return kmRemaining;
+       }
         static IList<Activity> ListOfActivities(DateTime startingFrom, DateTime? endingAt, bool onlyRunning = true){
             int page = 1;            
             long seconds = new DateTimeOffset(startingFrom).ToUnixTimeSeconds();
