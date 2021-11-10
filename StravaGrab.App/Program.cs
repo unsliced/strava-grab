@@ -22,14 +22,14 @@ namespace StravaGrab.App
     {
         static void Main(string[] args)
         {
-//            CyclingWeekly();
+            CyclingWeekly();
 //             Gvrat21();
 //            Export2Mongo("mongodb://192.168.1.17:27017/", 2020);
 //             RepopulateMongoLaps("mongodb://192.168.1.17:27017/", 100);
             // UpdateMongo("mongodb://192.168.1.17:27017/", true);
             // HeartRateSummary("mongodb://192.168.1.17:27017/");
 
-            MonthlyTotal(3650);
+//            MonthlyTotal(3650);
             Parser
                 .Default
                 .ParseArguments<CommandLineOptions>(args)
@@ -211,8 +211,8 @@ namespace StravaGrab.App
                     w = i;
             }
             for(int i = 0; i <= w; ++i) {
-                DateTime dt = LastDateOfWeekISO8601(DateTime.Today.Year, i+1).AddDays(6);
-                Console.WriteLine($"{dt.ToShortDateString()}: {buckets[i]:F2}");
+                DateTime dt = LastDateOfWeekISO8601(DateTime.Today.Year, i+1).AddDays(7);
+                Console.WriteLine($"{dt.ToShortDateString()}\t{buckets[i]:F2}");
             }
         }
 
