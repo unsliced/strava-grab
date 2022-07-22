@@ -369,8 +369,8 @@ namespace StravaGrab.App
             double diff = (DateTime.Now - startDate).TotalDays * targetKilometres / totalkm;
             Console.WriteLine($"Estimated finish: {startDate.AddDays(diff).ToShortDateString()}");
 
-            double diff2 = (DateTime.Now - startDate).TotalDays * (1000 * Activity.KilometreToMiles) / totalkm;
-            Console.WriteLine($"Estimated 1000 finish: {startDate.AddDays(diff2).ToShortDateString()}");
+            double diff2 = (DateTime.Now - startDate).TotalDays * (1000 / Activity.KilometreToMiles) / totalkm;
+            Console.WriteLine($"Estimated 1000mi finish: {startDate.AddDays(diff2).ToShortDateString()}");
 
             double diff3 = (DateTime.Now - startDate).TotalDays * (2 * targetKilometres) / totalkm;
             Console.WriteLine($"Estimated BAT finish: {startDate.AddDays(diff3).ToShortDateString()}");
